@@ -9,19 +9,39 @@
 
 namespace eos
 {
-	typedef std::string event_id;
 	class observer_interface;
+
+	typedef std::string event_id;
+	typedef std::list<observer_interface*> observer_list;
 
 	class server_interface
 	{
-	protected:
-		std::map<event_id, std::list<observer_interface*>> observers_;
+		std::map<event_id, observer_list> observers_;
 	public:
 		void register_observer(const event_id& id, observer_interface* observer) { observers_[id].emplace_back(observer); }
 		void unregister_observer(const event_id& id, observer_interface* observer) { observers_[id].remove_if([=](observer_interface* ob) { return ob == observer; }); }
-		void to_front(const event_id& id, observer_interface* observer) {}
-		void to_back(const event_id& id, observer_interface* observer) {}
-		std::list<observer_interface*> observers(const event_id& id) { return observers_[id]; }
+		void to_front(const event_id& id, observer_interface* observer) 
+		{ 
+			auto obs = observers_.find(id);
+			if (obs != observers_.end())
+			{
+				auto itr = std::find_if(obs->second.begin(), obs->second.end(), [=](const observer_interface* item) { return item == observer; });
+				if (itr != obs->second.begin() && itr != obs->second.end())
+					obs->second.splice(obs->second.begin(), obs->second, itr, std::next(itr));
+			}
+		}
+		void to_back(const event_id& id, observer_interface* observer) 
+		{
+			auto obs = observers_.find(id);
+			if (obs != observers_.end())
+			{
+				auto itr = std::find_if(obs->second.begin(), obs->second.end(), [=](const observer_interface* item) { return item == observer; });
+				if (itr != obs->second.end())
+					obs->second.splice(obs->second.end(), obs->second, itr);
+			}
+		}
+		observer_list observers(const event_id& id) { return observers_[id]; }
+		void observers(const event_id& id, std::function<eos::observer_list(const eos::observer_list&)> predicate) { observers_[id] = predicate(observers_[id]); }
 	};
 
 	extern server_interface& server();
@@ -32,8 +52,8 @@ namespace eos
 	public:
 		observer_interface(const event_id& id) : id_(id) { server().register_observer(id_, this); }
 		virtual ~observer_interface() { server().unregister_observer(id_, this); }
-		void observer_interface_to_front() { server().to_front(id_, this); }
-		void observer_interface_to_back() { server().to_back(id_, this); }
+		void observer_to_front() { server().to_front(id_, this); }
+		void observer_to_back() { server().to_back(id_, this); }
 		const event_id& id() const { return id_; }
 	};
 
@@ -69,9 +89,9 @@ namespace eos_observer\
 }\
 namespace eos_dispatch\
 {\
-	static void EOS_DECLARE_NAME(name)()\
+	static void EOS_DECLARE_NAME(name)(std::function<eos::observer_list(const eos::observer_list&)> predicate = nullptr)\
 	{\
-		auto observers = eos::server().observers(#name);\
+		auto observers = predicate ? predicate(eos::server().observers(#name)) : eos::server().observers(#name);\
 		for (auto o = observers.begin(); o != observers.end(); ++o) { dynamic_cast<eos_observer::EOS_DECLARE_NAME(name)*>(*o)->EOS_DECLARE_METHOD(name)(); }\
 	}\
 }
@@ -89,9 +109,9 @@ namespace eos_observer\
 }\
 namespace eos_dispatch\
 {\
-	static void EOS_DECLARE_NAME(name)(argt1 argv1)\
+	static void EOS_DECLARE_NAME(name)(argt1 argv1, std::function<eos::observer_list(const eos::observer_list&)> predicate = nullptr)\
 	{\
-		auto observers = eos::server().observers(#name);\
+		auto observers = predicate ? predicate(eos::server().observers(#name)) : eos::server().observers(#name);\
 		for (auto o = observers.begin(); o != observers.end(); ++o) { dynamic_cast<eos_observer::EOS_DECLARE_NAME(name)*>(*o)->EOS_DECLARE_METHOD(name)(argv1); }\
 	}\
 }
@@ -109,9 +129,9 @@ namespace eos_observer\
 }\
 namespace eos_dispatch\
 {\
-	static void EOS_DECLARE_NAME(name)(argt1 argv1, argt2 argv2)\
+	static void EOS_DECLARE_NAME(name)(argt1 argv1, argt2 argv2, std::function<eos::observer_list(const eos::observer_list&)> predicate = nullptr)\
 	{\
-		auto observers = eos::server().observers(#name);\
+		auto observers = predicate ? predicate(eos::server().observers(#name)) : eos::server().observers(#name);\
 		for (auto o = observers.begin(); o != observers.end(); ++o) { dynamic_cast<eos_observer::EOS_DECLARE_NAME(name)*>(*o)->EOS_DECLARE_METHOD(name)(argv1, argv2); }\
 	}\
 }
@@ -129,9 +149,9 @@ namespace eos_observer\
 }\
 namespace eos_dispatch\
 {\
-	static void EOS_DECLARE_NAME(name)(argt1 argv1, argt2 argv2, argt3 argv3)\
+	static void EOS_DECLARE_NAME(name)(argt1 argv1, argt2 argv2, argt3 argv3, std::function<eos::observer_list(const eos::observer_list&)> predicate = nullptr)\
 	{\
-		auto observers = eos::server().observers(#name);\
+		auto observers = predicate ? predicate(eos::server().observers(#name)) : eos::server().observers(#name);\
 		for (auto o = observers.begin(); o != observers.end(); ++o) { dynamic_cast<eos_observer::EOS_DECLARE_NAME(name)*>(*o)->EOS_DECLARE_METHOD(name)(argv1, argv2, argv3); }\
 	}\
 }
@@ -149,9 +169,9 @@ namespace eos_observer\
 }\
 namespace eos_dispatch\
 {\
-	static void EOS_DECLARE_NAME(name)(argt1 argv1, argt2 argv2, argt3 argv3, argt4 argv4)\
+	static void EOS_DECLARE_NAME(name)(argt1 argv1, argt2 argv2, argt3 argv3, argt4 argv4, std::function<eos::observer_list(const eos::observer_list&)> predicate = nullptr)\
 	{\
-		auto observers = eos::server().observers(#name);\
+		auto observers = predicate ? predicate(eos::server().observers(#name)) : eos::server().observers(#name);\
 		for (auto o = observers.begin(); o != observers.end(); ++o) { dynamic_cast<eos_observer::EOS_DECLARE_NAME(name)*>(*o)->EOS_DECLARE_METHOD(name)(argv1, argv2, argv3, argv4); }\
 	}\
 }
@@ -169,9 +189,9 @@ namespace eos_observer\
 }\
 namespace eos_dispatch\
 {\
-	static void EOS_DECLARE_NAME(name)(argt1 argv1, argt2 argv2, argt3 argv3, argt4 argv4, argt5 argv5)\
+	static void EOS_DECLARE_NAME(name)(argt1 argv1, argt2 argv2, argt3 argv3, argt4 argv4, argt5 argv5, std::function<eos::observer_list(const eos::observer_list&)> predicate = nullptr)\
 	{\
-		auto observers = eos::server().observers(#name);\
+		auto observers = predicate ? predicate(eos::server().observers(#name)) : eos::server().observers(#name);\
 		for (auto o = observers.begin(); o != observers.end(); ++o) { dynamic_cast<eos_observer::EOS_DECLARE_NAME(name)*>(*o)->EOS_DECLARE_METHOD(name)(argv1, argv2, argv3, argv4, argv5); }\
 	}\
 }
